@@ -1,0 +1,141 @@
+<!doctype html>
+<html>
+  <head>
+    <title>Youtube</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
+    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.1.3/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://code.jquery.com/jquery-1.11.1.js"></script>
+  </head>
+  <body>
+      <div class="container">
+          <div class="d-flex justify-content-center">
+              Youtube Share 2
+          </div>
+          <div class="d-flex justify-content-center">
+              <div id="ytplayer">
+              </div>
+          </div>
+          <div class="d-flex justify-content-center">
+                  <div class="progress" style="height:20px;width:640px;" id='progress_bar'>
+                      <div class="progress-bar" role="progressbar" id="progress_bar_indicator" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+                  </div>
+          </div>
+      </div>
+      <script>
+        var socket = io();
+        // Load the IFrame Player API code asynchronously.
+        var tag = document.createElement('script');
+        tag.src = "https://www.youtube.com/iframe_api";
+        var firstScriptTag = document.getElementsByTagName('script')[0];
+        firstScriptTag.parentNode.insertBefore(tag, firstScriptTag);
+      
+        // Replace the 'ytplayer' element with an <iframe> and
+        // YouTube player after the API code downloads.
+        var player;
+        var flag= true;
+        var progress_bar = document.getElementById('progress_bar')
+        var progress_bar_indicator = document.getElementById('progress_bar_indicator')
+        progress_bar.addEventListener('click',progressBarClicked,false)
+      
+        function progressBarClicked(event){
+            var selected_progress_value = (event.layerX)
+            var scroll_to = (selected_progress_value/640)*100
+            var player_total_time = player.getDuration()
+            var seekto = player_total_time*(scroll_to/100)
+            setProgressBar(scroll_to,'seekto',true)
+            player.seekTo(seekto,true)
+            console.log('scroll to from clicking',seekto)
+        }
+
+        function sendInfo(value,methodName,emitInfo){
+          if(emitInfo){
+            socket.emit('sendMsg', {
+              value:value,
+              methodName:methodName
+            });
+          }
+        }
+        //respObject = {'value':'time','methodName':'name of the method'}
+        socket.on('sendMsg', function(respObject){
+          if(respObject['methodName'] == 'seekto'){
+            var player_total_time = player.getDuration()
+            var scroll_to = respObject['value'];
+            var seekto = player_total_time*(scroll_to/100)
+            setProgressBar(scroll_to,'seekto',false)
+            player.seekTo(seekto,true);
+          }
+          if(respObject['methodName'] == 'play'){
+            player.playVideo()
+          }
+          if(respObject['methodName'] == 'pause'){
+            player.pauseVideo()
+          }
+        });
+        
+        function onYouTubeIframeAPIReady() {
+            player = new YT.Player('ytplayer', {
+            height: '360',
+            width: '640',
+            videoId: 'XdZqwJEnj54',
+            playerVars:{
+                //This help to disable the control
+                'controls':0,
+                //This let us control the frame
+                'enablejsapi':1,
+                //This help to disable keyboard 
+                'disablekb':1,
+                //This help to hide the title of video
+                'showinfo':0,
+                'modestbranding':0,
+                //This help to stop generating related video when we pause the video
+                'rel':0
+            },
+            events:{
+                'onStateChange' : onPlayerStateChange,
+                'onReady': onPlayerReady
+            }
+            });
+        }
+        
+        // value is a float, methodName is pause,seekto,play
+        function setProgressBar(value,methodName,emitInfo){
+            progress_bar_indicator.setAttribute("style","width:"+value+"%")
+            progress_bar_indicator.setAttribute("aria-valuenow",value)
+            sendInfo(value,methodName,emitInfo)
+        }
+      
+        function calculateValue(methodName){
+            var total_time = player.getDuration()/60 //we are converting seconds into minutes
+            var current_time = player.getCurrentTime()/60 //we are getting the current time and converting it into minutes
+            var percentComplete = (current_time/total_time)*100 // we convert the provided value into percentage based on the total time
+            setProgressBar(percentComplete,methodName,true)
+        }
+      
+        // This function start when the player is ready    
+        function onPlayerReady(event){
+            calculateValue('unstarted');
+        }
+      
+        function onPlayerStateChange(event){
+            if(event.data == -1){
+                //this one for unstarted
+                calculateValue('unstarted')
+            }else if(event.data == 0){
+                //this one for ended
+                calculateValue('end')
+            }else if(event.data == 1){
+                //This one for playing
+                calculateValue('play');
+            }else if(event.data == 2){
+                //This one for paused
+                calculateValue('pause')
+            }
+        }
+      </script>
+  </body>
+</html>
